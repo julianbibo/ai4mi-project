@@ -21,37 +21,44 @@ if [ -z "$RUN_NAME" ]; then
   exit 1
 fi
 
-FOLDER=${SLURM_JOB_ID}_${RUN_NAME}
+FOLDER=results/${SLURM_JOB_ID}_${RUN_NAME}
 
 
 # train model
 python -O main.py \
   --dataset SEGTHOR_CLEAN \
   --mode full \
-  --epoch 1 \
-  --dest results/${FOLDER} \
+  --epoch 25 \
+  --dest ${FOLDER} \
   --gpu \
+  --optimizer adamw \
+  --learning_rate 0.001 \
+  --weight_decay 0.01 \
+
+
+# cleanup iter* folders
+rm -rf ${FOLDER}/iter*
 
 # stitch predictions
 python stitch_v0.py \
-  --data_folder results/${FOLDER}/best_epoch/val \
-  --dest_folder results/${FOLDER}/stitched_pred \
+  --data_folder ${FOLDER}/best_epoch/val \
+  --dest_folder ${FOLDER}/stitched_pred \
   --num_classes 5 \
   --grp_regex "(Patient_\d\d)_\d\d\d\d" \
   --source_scan_pattern "data/segthor_train/train/{id_}/GT.nii.gz"
 
 # compute metrics
 python distorch/compute_metrics.py \
-  --ref_folder results/${FOLDER}/stitched_pred \
+  --ref_folder ${FOLDER}/stitched_pred \
   --pred_folder data/SEGTHOR_CLEAN/val/stitched_gt \
   --ref_extension .nii.gz \
   --pred_extension .nii.gz \
   --num_classes 5 \
   --metrics 3d_dice 3d_hd95 \
-  --save_folder results/${FOLDER}/metrics
+  --save_folder ${FOLDER}/metrics
 
 # plot metrics over time
-python plot.py --metric_file results/${FOLDER}/dice_val.npy --dest results/${FOLDER}/dice_val.png
-python plot.py --metric_file results/${FOLDER}/loss_val.npy --dest results/${FOLDER}/loss_val.png
-python plot.py --metric_file results/${FOLDER}/dice_tra.npy --dest results/${FOLDER}/dice_tra.png
-python plot.py --metric_file results/${FOLDER}/loss_tra.npy --dest results/${FOLDER}/loss_tra.png
+python plot.py --metric_file ${FOLDER}/dice_val.npy --dest ${FOLDER}/dice_val.png
+python plot.py --metric_file ${FOLDER}/loss_val.npy --dest ${FOLDER}/loss_val.png
+python plot.py --metric_file ${FOLDER}/dice_tra.npy --dest ${FOLDER}/dice_tra.png
+python plot.py --metric_file ${FOLDER}/loss_tra.npy --dest ${FOLDER}/loss_tra.png
