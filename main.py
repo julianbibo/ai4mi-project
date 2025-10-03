@@ -215,7 +215,9 @@ def runTraining(args):
                 cm()
             ):  # Either dummy context manager, or the torch.no_grad for validation
                 j = 0
-                tq_iter = tqdm_(enumerate(loader), total=len(loader), desc=desc)
+                tq_iter = tqdm_(
+                    enumerate(loader), total=len(loader), desc=desc, mininterval=5
+                )
                 for i, data in tq_iter:
                     img = data["images"].to(device)
                     gt = data["gts"].to(device)
