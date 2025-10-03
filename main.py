@@ -88,6 +88,38 @@ def gt_transform(K, img):
     return img[0]
 
 
+def get_optimizer(args, net):
+    match args.optimizer.lower():
+        case "baseline":
+            optimizer = torch.optim.Adam(
+                net.parameters(), lr=0.0005, betas=(0.9, 0.999)
+            )
+        case "sgd":
+            optimizer = torch.optim.SGD(
+                net.parameters(),
+                lr=args.learning_rate,
+                momentum=0.9,
+                weight_decay=args.weight_decay,
+            )
+        case "adam":
+            # original value of `optimizer`
+            optimizer = torch.optim.Adam(
+                net.parameters(),
+                lr=args.learning_rate,
+                weight_decay=args.weight_decay,
+            )
+        case "adamw":
+            optimizer = torch.optim.AdamW(
+                net.parameters(),
+                lr=args.learning_rate,
+                weight_decay=args.weight_decay,
+            )
+        case _:
+            raise ValueError(f"Unknown optimizer {args.optimizer}")
+
+    return optimizer
+
+
 def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     # Networks and scheduler
     gpu: bool = args.gpu and torch.cuda.is_available()
@@ -109,8 +141,7 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     net.init_weights()
     net.to(device)
 
-    lr = 0.0005
-    optimizer = torch.optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999))
+    optimizer = get_optimizer(args, net)
 
     # Dataset part
     B: int = datasets_params[args.dataset]["B"]
@@ -283,6 +314,12 @@ def main():
         help="Keep only a fraction (10 samples) of the datasets, "
         "to test the logics around epochs and logging easily.",
     )
+
+    parser.add_argument(
+        "--optimizer", type=str, default="adam", choices=["adam", "sgd", "adamw"]
+    )
+    parser.add_argument("--learning_rate", type=float, default=0.0005)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
 
     args = parser.parse_args()
 
