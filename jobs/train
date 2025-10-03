@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=1            # cpu-cores per task (>1 if multi-threaded tasks), 4 is default
 #SBATCH --gpus=1                     # number of gpus per node
 #SBATCH --partition=gpu_mig          # partition
-#SBATCH --time=00:10:00              # total run time limit (HH:MM:SS)
+#SBATCH --time=01:00:00              # total run time limit (HH:MM:SS)
 #SBATCH --output=logs/%x/%j_%x.log   # output file
 
 source .venv/bin/activate
@@ -13,8 +13,5 @@ python -c "import torch; print('Torch version:', torch.__version__); print('CUDA
 
 ############################################################
 
-# test run
-# python main.py --dataset SEGTHOR_CLEAN --mode full --epoch 2 --dest results/baseline --gpu
-
 # optimized
-python -O main.py --dataset SEGTHOR_CLEAN --mode full --epoch 25 --dest results/baseline --gpu
+python -O main.py --dataset SEGTHOR_CLEAN --mode full --epoch 25 --dest results/${SLURM_JOB_ID} --gpu

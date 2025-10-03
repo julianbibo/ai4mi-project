@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --nodes=1                    # node count
+#SBATCH --ntasks=1                   # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1            # cpu-cores per task (>1 if multi-threaded tasks), 4 is default
+#SBATCH --gpus=1                     # number of gpus per node
+#SBATCH --partition=gpu_mig          # partition
+#SBATCH --time=00:10:00              # total run time limit (HH:MM:SS)
+#SBATCH --output=logs/%x/%j_%x.log   # output file
+
+source .venv/bin/activate
+python -c "import sys; print('Python version:', sys.version)"
+python -c "import torch; print('Torch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
+
+############################################################
+
+FOLDER=$1
+
+# if FOLDER is not set, exit
+if [ -z "$FOLDER" ]; then
+  echo "FOLDER is not set. Must specify results subfolder."
+  exit 1
+fi
+
+# stitch predictions
+python stitch_v0.py \
+  --data_folder results/${FOLDER}/best_epoch/val \
+  --dest_folder results/${FOLDER}/stitched_pred \
+  --num_classes 5 \
+  --grp_regex "(Patient_\d\d)_\d\d\d\d" \
+  --source_scan_pattern "data/segthor_train/train/{id_}/GT.nii.gz"
