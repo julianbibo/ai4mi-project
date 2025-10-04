@@ -17,11 +17,11 @@ FOLDER=$1
 
 # if FOLDER is not set, exit
 if [ -z "$FOLDER" ]; then
-  echo "FOLDER is not set. Must specify results subfolder."
+  echo "FOLDER is not set. Must specify results folder."
   exit 1
 fi
 
-python plot.py --metric_file results/${FOLDER}/dice_val.npy --dest results/${FOLDER}/dice_val.png
-python plot.py --metric_file results/${FOLDER}/loss_val.npy --dest results/${FOLDER}/loss_val.png
-python plot.py --metric_file results/${FOLDER}/dice_tra.npy --dest results/${FOLDER}/dice_tra.png
-python plot.py --metric_file results/${FOLDER}/loss_tra.npy --dest results/${FOLDER}/loss_tra.png
+python plot.py --metric_file ${FOLDER}/dice_val.npy --dest ${FOLDER}/dice_val.png
+python plot.py --metric_file ${FOLDER}/loss_val.npy --dest ${FOLDER}/loss_val.png
+python plot.py --metric_file ${FOLDER}/dice_tra.npy --dest ${FOLDER}/dice_tra.png
+python plot.py --metric_file ${FOLDER}/loss_tra.npy --dest ${FOLDER}/loss_tra.png
