@@ -29,8 +29,8 @@ from pathlib import Path
 from functools import partial
 from utils import tqdm_
 from PIL import Image
-from skimage import morphology
-from skimage import filters
+from post_processing_utils import apply_postprocessing
+
 
 def main(args: argparse.Namespace) -> None:
     file_paths = sorted(args.data_folder.glob("*"))
@@ -78,46 +78,6 @@ def main(args: argparse.Namespace) -> None:
         nib.save(new_img, args.dest_folder / (id + ".nii.gz"))
 
 
-def apply_postprocessing(volume, method="opening"):
-    match method:
-        case "opening":
-            return post_process_morphology(volume, skimage.morphology.opening)
-        case "closing":
-            return post_process_morphology(volume, skimage.morphology.closing)
-        case "gaussian_smoothing":
-            return gaussian_blur_thresholding(volume)
-        case _:
-            return volume
-
-
-def post_process_morphology(volume, post_function):
-    classes = np.unique(volume)
-    classes = classes[classes != 0]
-    footprint = morphology.ball(radius=2)
-    processed_volume = np.zeros_like(volume)
-
-    for class_label in classes:
-        mask = volume == class_label
-        processed_mask = post_function(mask, footprint=footprint)
-        processed_volume[processed_mask] = class_label
-
-    return processed_volume
-
-
-def gaussian_blur_thresholding(volume):
-    classes = np.unique(volume)
-    classes = classes[classes != 0]
-    processed_volume = np.zeros_like(volume)
-
-    for class_label in classes:
-        mask = volume == class_label
-        mask_smoothed = filters.gaussian(mask, sigma=1, preserve_range=True)
-        mask = mask_smoothed > 0.5
-        processed_volume[mask] = class_label
-
-    return processed_volume
-
-
 def get_args() -> argparse.Namespace:
         parser = argparse.ArgumentParser(description="Stitching arguments")
 
@@ -133,6 +93,7 @@ def get_args() -> argparse.Namespace:
         print(args)
 
         return args
+
 
 if __name__ == "__main__":
         main(get_args())
