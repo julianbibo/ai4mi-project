@@ -95,25 +95,32 @@ def get_optimizer(args, net):
                 net.parameters(), lr=0.0005, betas=(0.9, 0.999)
             )
         case "sgd":
-            optimizer = torch.optim.SGD(
-                net.parameters(),
-                lr=args.learning_rate,
-                momentum=0.9,
-                weight_decay=args.weight_decay,
-            )
+            if args.weight_decay is None:
+                optimizer = torch.optim.SGD(net.parameters(), lr=args.learning_rate)
+            else:
+                optimizer = torch.optim.SGD(
+                    net.parameters(),
+                    lr=args.learning_rate,
+                    weight_decay=args.weight_decay,
+                )
         case "adam":
-            # original value of `optimizer`
-            optimizer = torch.optim.Adam(
-                net.parameters(),
-                lr=args.learning_rate,
-                weight_decay=args.weight_decay,
-            )
+            if args.weight_decay is None:
+                optimizer = torch.optim.Adam(net.parameters(), lr=args.learning_rate)
+            else:
+                optimizer = torch.optim.Adam(
+                    net.parameters(),
+                    lr=args.learning_rate,
+                    weight_decay=args.weight_decay,
+                )
         case "adamw":
-            optimizer = torch.optim.AdamW(
-                net.parameters(),
-                lr=args.learning_rate,
-                weight_decay=args.weight_decay,
-            )
+            if args.weight_decay is None:
+                optimizer = torch.optim.AdamW(net.parameters(), lr=args.learning_rate)
+            else:
+                optimizer = torch.optim.AdamW(
+                    net.parameters(),
+                    lr=args.learning_rate,
+                    weight_decay=args.weight_decay,
+                )
         case _:
             raise ValueError(f"Unknown optimizer {args.optimizer}")
 
@@ -318,10 +325,13 @@ def main():
     )
 
     parser.add_argument(
-        "--optimizer", type=str, default="adam", choices=["adam", "sgd", "adamw"]
+        "--optimizer",
+        type=str,
+        default="baseline",
+        choices=["adam", "sgd", "adamw", "baseline"],
     )
     parser.add_argument("--learning_rate", type=float, default=0.0005)
-    parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--weight_decay", type=float, default=None)
 
     args = parser.parse_args()
 

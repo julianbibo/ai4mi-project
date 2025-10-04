@@ -32,8 +32,8 @@ python -O main.py \
   --dest ${FOLDER} \
   --gpu \
   --optimizer adamw \
-  --learning_rate 0.001 \
-  --weight_decay 0.01 \
+  --learning_rate 1e-2 \
+  --weight_decay 1e-4 \
 
 
 # cleanup iter* folders
