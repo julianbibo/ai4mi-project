@@ -33,11 +33,19 @@ from typing import Callable
 
 import numpy as np
 import nibabel as nib
+from skimage import exposure
 from skimage.io import imsave
 from skimage.transform import resize
 
 from utils import map_, tqdm_
 
+def window_ct(ct, level=40, width=600):
+    min_hu = level - width / 2
+    max_hu = level + width / 2
+    return np.clip(ct, min_hu, max_hu)
+
+def enhance_contrast(img):
+    return (exposure.equalize_adapthist(img / 255.0, clip_limit=0.01) * 255).astype(np.uint8)
 
 def norm_arr(img: np.ndarray) -> np.ndarray:
     casted = img.astype(np.float32)
@@ -103,7 +111,10 @@ def slice_patient(id_: str, dest_path: Path, source_path: Path, shape: tuple[int
     else:
         gt = np.zeros_like(ct, dtype=np.uint8)
 
+    ct = window_ct(ct, level=40, width=400)
     norm_ct: np.ndarray = norm_arr(ct)
+
+    norm_ct = enhance_contrast(norm_ct)
 
     to_slice_ct = norm_ct
     to_slice_gt = gt
@@ -162,7 +173,7 @@ def main(args: argparse.Namespace):
 
     # Assume the clean up is done before calling the script
     assert src_path.exists()
-    assert not dest_path.exists()
+    assert dest_path.exists()
 
     training_ids: list[str]
     validation_ids: list[str]
