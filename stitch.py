@@ -71,7 +71,7 @@ def main(args: argparse.Namespace) -> None:
             preserve_range=True
         ).astype(np.uint8)
 
-        vol = apply_postprocessing(vol, args.post_processing)
+        vol = apply_postprocessing(vol, args.post_processing, args.radius, args.sigma)
 
         new_img = nib.Nifti1Image(vol, affine=gt_img.affine, header=gt_img.header)
         args.dest_folder.mkdir(exist_ok=True, parents=True)
@@ -86,14 +86,17 @@ def get_args() -> argparse.Namespace:
         parser.add_argument("--num_classes", type=int, required=True)
         parser.add_argument("--grp_regex", type=str, required=True)
         parser.add_argument("--source_scan_pattern", type=str, required=True)
+
+        # Post processing arguments:
         parser.add_argument("--post_processing", default="none", choices=["none", "opening", "closing", "gaussian_smoothing"])
+        parser.add_argument("--radius", type=int, default=2)
+        parser.add_argument("--sigma", type=float, default=1)
 
         args = parser.parse_args()
 
         print(args)
 
         return args
-
 
 if __name__ == "__main__":
         main(get_args())
