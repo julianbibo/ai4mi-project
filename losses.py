@@ -24,6 +24,7 @@
 
 
 from torch import einsum
+import torch
 
 from utils import simplex, sset
 
@@ -51,3 +52,49 @@ class CrossEntropy():
 class PartialCrossEntropy(CrossEntropy):
     def __init__(self, **kwargs):
         super().__init__(idk=[1], **kwargs)
+
+class DiceLoss():
+    def __init__(self, **kwargs):
+        # Self.idk is used to filter out some classes of the target mask. Use fancy indexing
+        self.idk = kwargs['idk']
+        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+
+    def __call__(self, pred_softmax, weak_target, smooth=1e-8):
+        assert pred_softmax.shape == weak_target.shape
+        assert simplex(pred_softmax)
+        assert sset(weak_target, [0, 1])
+
+        preds = (pred_softmax[:, self.idk, ...]) # shape torch.Size([8, 5, 256, 256]) (batch, c, h,w)
+        mask = weak_target[:, self.idk, ...].float()
+
+        num_classes = preds.shape[1]
+
+        dice = 0
+
+        for c in range(num_classes):  # Loop through each class
+            pred_c = preds[:, c, :, :]  # Predictions for class c
+            target_c = mask[:, c, :, :]  # Ground truth for class c
+            
+            intersection = (pred_c * target_c).sum(dim=(1, 2))  # Element-wise multiplication
+            union = pred_c.sum(dim=(1, 2)) + target_c.sum(dim=(1, 2))  # Sum of all pixels
+            
+            dice += (2 * intersection + smooth) / (union + smooth)  # Per-class Dice score
+
+        return 1 - torch.mean(dice) / num_classes  # Average Dice Loss across batch and classes
+
+class CombinedLoss():
+    def __init__(self, idk, ce_weight=0.5, dice_weight=0.5):
+        self.ce_loss = CrossEntropy(**idk)
+        self.dice_loss = DiceLoss(**idk)
+        self.ce_weight = ce_weight
+        self.dice_weight = dice_weight
+        print(f"Initialized CombinedLoss with ce_weight={ce_weight}, dice_weight={dice_weight}")
+
+    def __call__(self, pred_softmax, weak_target):
+        ce = self.ce_loss(pred_softmax, weak_target)
+        dice = self.dice_loss(pred_softmax, weak_target)
+        total = self.ce_weight * ce + self.dice_weight * dice
+
+        return total
+
+

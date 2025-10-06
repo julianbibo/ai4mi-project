@@ -51,6 +51,7 @@ from utils import (Dcm,
                    save_images)
 
 from losses import (CrossEntropy)
+from losses import DiceLoss, CombinedLoss
 
 datasets_params: dict[str, dict[str, Any]] = {}
 # K for the number of classes
@@ -90,7 +91,7 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     net.init_weights()
     net.to(device)
 
-    lr = 0.0005
+    lr = 0.0005 # was 0.0005
     optimizer = torch.optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999))
 
     # Dataset part
@@ -134,6 +135,11 @@ def runTraining(args):
         loss_fn = CrossEntropy(idk=[0, 1, 3, 4])  # Do not supervise the heart (class 2)
     else:
         raise ValueError(args.mode, args.dataset)
+    
+    if args.loss == "dice_loss":
+        loss_fn = DiceLoss(idk=list(range(K)))
+    elif args.loss == "combined":
+        loss_fn = CombinedLoss(idk=list(range(K)), ce_weight=0.5, dice_weight=0.5)
 
     # Notice one has the length of the _loader_, and the other one of the _dataset_
     log_loss_tra: Tensor = torch.zeros((args.epochs, len(train_loader)))
@@ -245,6 +251,7 @@ def main():
     parser.add_argument('--debug', action='store_true',
                         help="Keep only a fraction (10 samples) of the datasets, "
                              "to test the logics around epochs and logging easily.")
+    parser.add_argument('--loss', default='cross_entropy', type=str, choices=['cross_entropy', 'dice_loss', 'combined'])
 
     args = parser.parse_args()
 
