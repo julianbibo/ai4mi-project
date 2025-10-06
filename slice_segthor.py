@@ -36,6 +36,8 @@ import nibabel as nib
 from skimage import exposure
 from skimage.io import imsave
 from skimage.transform import resize
+from skimage.filters import gaussian
+
 
 from utils import map_, tqdm_
 
@@ -46,6 +48,12 @@ def window_ct(ct, level=40, width=600):
 
 def enhance_contrast(img):
     return (exposure.equalize_adapthist(img / 255.0, clip_limit=0.01) * 255).astype(np.uint8)
+
+def denoise_gaussian(img, sigma=0.6):
+    # gaussian filter
+    img = gaussian(img, sigma=sigma, preserve_range=True)
+    return img.astype(np.uint8)
+
 
 def norm_arr(img: np.ndarray) -> np.ndarray:
     casted = img.astype(np.float32)
@@ -115,6 +123,8 @@ def slice_patient(id_: str, dest_path: Path, source_path: Path, shape: tuple[int
     norm_ct: np.ndarray = norm_arr(ct)
 
     norm_ct = enhance_contrast(norm_ct)
+
+    norm_ct = denoise_gaussian(norm_ct, sigma=0.6)
 
     to_slice_ct = norm_ct
     to_slice_gt = gt
