@@ -193,7 +193,7 @@ class ENet(nn.Module):
                                                    BottleNeck(K * 4, K * 4, F, args=args),
                                                    BottleNeck(K * 4, K * 4, F, args=args),
                                                    BottleNeck(K * 4, K * 4, F, args=args))
-                self.bottleneck2_0 = BottleNeckDownSampling(K * 4, K * 8, F)
+                self.bottleneck2_0 = BottleNeckDownSampling(K * 4, K * 8, F, args=args)
                 self.bottleneck2_1 = nn.Sequential(BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, args=args),
                                                    BottleNeck(K * 8, K * 8, F, dilation=2, args=args),
                                                    BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, asym=True, args=args),
