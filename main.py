@@ -86,7 +86,7 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     K: int = datasets_params[args.dataset]['K']
     kernels: int = datasets_params[args.dataset]['kernels'] if 'kernels' in datasets_params[args.dataset] else 8
     factor: int = datasets_params[args.dataset]['factor'] if 'factor' in datasets_params[args.dataset] else 2
-    net = datasets_params[args.dataset]['net'](1, K, kernels=kernels, factor=factor)
+    net = datasets_params[args.dataset]['net'](1, K, args=args, kernels=kernels, factor=factor)
     net.init_weights()
     net.to(device)
 
@@ -245,8 +245,18 @@ def main():
     parser.add_argument('--debug', action='store_true',
                         help="Keep only a fraction (10 samples) of the datasets, "
                              "to test the logics around epochs and logging easily.")
-
+    
+    # NOTE: Custom argument
+    parser.add_argument("--activation", default="prelu")
     args = parser.parse_args()
+
+    # parse activation
+    if args.activation == "prelu":
+        args.activation_fn = nn.PReLU()
+    elif args.activation == "gelu":
+        args.activation_fn = nn.GELU()
+    else:
+        raise NotImplementedError(f"Activation function '{args.activation}' not available!")
 
     pprint(args)
 
