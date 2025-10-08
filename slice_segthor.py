@@ -120,11 +120,15 @@ def slice_patient(id_: str, dest_path: Path, source_path: Path, shape: tuple[int
         gt = np.zeros_like(ct, dtype=np.uint8)
 
     ct = window_ct(ct, level=40, width=400)
+    
     norm_ct: np.ndarray = norm_arr(ct)
-
-    norm_ct = enhance_contrast(norm_ct)
-
+    
     norm_ct = denoise_gaussian(norm_ct, sigma=0.6)
+    
+    norm_ct = enhance_contrast(norm_ct)
+    
+
+
 
     to_slice_ct = norm_ct
     to_slice_gt = gt
