@@ -88,7 +88,7 @@ def get_args() -> argparse.Namespace:
         parser.add_argument("--source_scan_pattern", type=str, required=True)
 
         # Post processing arguments:
-        parser.add_argument("--post_processing", default="none", choices=["none", "opening", "closing", "gaussian_smoothing"])
+        parser.add_argument("--post_processing", default="closing", choices=["none", "opening", "closing", "gaussian_smoothing"])
         parser.add_argument("--radius", type=int, default=2)
         parser.add_argument("--sigma", type=float, default=1)
 
