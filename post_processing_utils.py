@@ -24,6 +24,12 @@ def post_process_morphology(volume, post_function, radius=2):
     for class_label in classes:
         mask = volume == class_label
         processed_mask = post_function(mask, footprint=footprint)
+
+        # if a class prediction is completely removed after 
+        # applying the filter, leave it as it was.
+        if processed_mask.sum() == 0:
+            processed_mask = mask
+
         processed_volume[processed_mask] = class_label
 
     return processed_volume
@@ -37,7 +43,11 @@ def gaussian_blur_thresholding(volume, sigma=1):
     for class_label in classes:
         mask = volume == class_label
         mask_smoothed = filters.gaussian(mask, sigma=sigma, preserve_range=True)
-        mask = mask_smoothed > 0.5
-        processed_volume[mask] = class_label
+        mask_smoothed = mask_smoothed > 0.5
+
+        if mask_smoothed.sum() == 0:
+            mask_smoothed = mask
+
+        processed_volume[mask_smoothed] = class_label
 
     return processed_volume
