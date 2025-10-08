@@ -32,6 +32,10 @@ def post_process_morphology(volume, post_function, radius=2):
 
         processed_volume[processed_mask] = class_label
 
+    # If a class was remvoed, return the original volume.
+    if set(np.unique(processed_volume)) != set(np.unique(volume)):
+        return volume
+
     return processed_volume
 
 
@@ -49,5 +53,8 @@ def gaussian_blur_thresholding(volume, sigma=1):
             mask_smoothed = mask
 
         processed_volume[mask_smoothed] = class_label
+
+    if set(np.unique(processed_volume)) != set(np.unique(volume)):
+        return volume
 
     return processed_volume
