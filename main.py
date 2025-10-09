@@ -52,6 +52,8 @@ from utils import (
 
 from losses import CrossEntropy
 
+from models.lwunet import LWUNet
+
 datasets_params: dict[str, dict[str, Any]] = {}
 # K for the number of classes
 # Avoids the classes with C (often used for the number of Channel)
@@ -60,7 +62,7 @@ datasets_params["SEGTHOR"] = {"K": 5, "net": ENet, "B": 8, "kernels": 8, "factor
 datasets_params["SEGTHOR_CLEAN"] = {
     "K": 5,
     "net": ENet,
-    "B": 8,
+    "B": 32,
     "kernels": 8,
     "factor": 2,
 }
@@ -144,8 +146,18 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
         if "factor" in datasets_params[args.dataset]
         else 2
     )
-    net = datasets_params[args.dataset]["net"](1, K, kernels=kernels, factor=factor)
-    net.init_weights()
+
+    match args.model:
+        case "enet":
+            net = ENet(1, K, kernels=kernels, factor=factor)
+            net.init_weights()
+
+        case "lwunet":
+            net = LWUNet(1, 5)
+
+        case _:
+            raise ValueError(f"Unknown model {args.model=}")
+
     net.to(device)
 
     optimizer = get_optimizer(args, net)
@@ -332,6 +344,7 @@ def main():
     )
     parser.add_argument("--learning_rate", type=float, default=0.0005)
     parser.add_argument("--weight_decay", type=float, default=None)
+    parser.add_argument("--model", type=str, default="enet", choices=["enet", "lwunet"])
 
     args = parser.parse_args()
 
