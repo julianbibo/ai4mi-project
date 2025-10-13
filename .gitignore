@@ -1,3 +1,7 @@
+.venv/
+logs/
+distorch/
+
 data/*
 !data/*.b3sum
 !data/*.sha256
