@@ -68,7 +68,7 @@ def main(args: argparse.Namespace) -> None:
             anti_aliasing=False,
             order=0,
             mode="constant",
-            preserve_range=True
+            preserve_range=True,
         ).astype(np.uint8)
 
         vol = apply_postprocessing(vol, args.post_processing, args.radius, args.sigma)
@@ -79,24 +79,29 @@ def main(args: argparse.Namespace) -> None:
 
 
 def get_args() -> argparse.Namespace:
-        parser = argparse.ArgumentParser(description="Stitching arguments")
+    parser = argparse.ArgumentParser(description="Stitching arguments")
 
-        parser.add_argument("--data_folder", type=Path, required=True)
-        parser.add_argument("--dest_folder", type=Path, required=True)
-        parser.add_argument("--num_classes", type=int, required=True)
-        parser.add_argument("--grp_regex", type=str, required=True)
-        parser.add_argument("--source_scan_pattern", type=str, required=True)
+    parser.add_argument("--data_folder", type=Path, required=True)
+    parser.add_argument("--dest_folder", type=Path, required=True)
+    parser.add_argument("--num_classes", type=int, required=True)
+    parser.add_argument("--grp_regex", type=str, required=True)
+    parser.add_argument("--source_scan_pattern", type=str, required=True)
 
-        # Post processing arguments:
-        parser.add_argument("--post_processing", default="closing", choices=["none", "opening", "closing", "gaussian_smoothing"])
-        parser.add_argument("--radius", type=int, default=2)
-        parser.add_argument("--sigma", type=float, default=1)
+    # Post processing arguments:
+    parser.add_argument(
+        "--post_processing",
+        default="closing",
+        choices=["none", "opening", "closing", "gaussian_smoothing"],
+    )
+    parser.add_argument("--radius", type=int, default=2)
+    parser.add_argument("--sigma", type=float, default=1)
 
-        args = parser.parse_args()
+    args = parser.parse_args()
 
-        print(args)
+    print(args)
 
-        return args
+    return args
+
 
 if __name__ == "__main__":
-        main(get_args())
+    main(get_args())
