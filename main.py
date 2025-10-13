@@ -67,6 +67,27 @@ datasets_params["SEGTHOR_CLEAN"] = {
     "kernels": 8,
     "factor": 2,
 }
+datasets_params["SEGTHOR_PREPROCESSED"] = {
+    "K": 5,
+    "net": ENet,
+    "B": 32,
+    "kernels": 8,
+    "factor": 2,
+}
+datasets_params["SEGTHOR_AUGMENTED"] = {
+    "K": 5,
+    "net": ENet,
+    "B": 32,
+    "kernels": 8,
+    "factor": 2,
+}
+datasets_params["TEST_PREPROCESSED"] = {
+    "K": 5,
+    "net": ENet,
+    "B": 32,
+    "kernels": 8,
+    "factor": 2,
+}
 
 
 def img_transform(img):
@@ -148,16 +169,21 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
         else 2
     )
 
-    match args.model:
-        case "enet":
-            net = ENet(1, K, args=args, kernels=kernels, factor=factor)
-            net.init_weights()
+    # load model
+    if args.test_model:
+        net = torch.load(Path(args.test_model) / "bestmodel.pkl", weights_only=False)
+        net.load_state_dict(torch.load(Path(args.test_model) / "bestweights.pt"))
+    else:
+        match args.model:
+            case "enet":
+                net = ENet(1, K, args=args, kernels=kernels, factor=factor)
+                net.init_weights()
 
-        case "lwunet":
-            net = LWUNet(1, 5)
+            case "lwunet":
+                net = LWUNet(1, 5)
 
-        case _:
-            raise ValueError(f"Unknown model {args.model=}")
+            case _:
+                raise ValueError(f"Unknown model {args.model=}")
 
     net.to(device)
 
@@ -167,17 +193,20 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     B: int = datasets_params[args.dataset]["B"]
     root_dir = Path("data") / args.dataset
 
-    train_set = SliceDataset(
-        "train",
-        root_dir,
-        img_transform=img_transform,
-        gt_transform=partial(gt_transform, K),
-        debug=args.debug,
-    )
-    train_loader = DataLoader(train_set, batch_size=B, num_workers=5, shuffle=True)
+    if not args.test_model:
+        train_set = SliceDataset(
+            "train",
+            root_dir,
+            img_transform=img_transform,
+            gt_transform=partial(gt_transform, K),
+            debug=args.debug,
+        )
+        train_loader = DataLoader(train_set, batch_size=B, num_workers=5, shuffle=True)
+    else:
+        train_loader = None
 
     val_set = SliceDataset(
-        "val",
+        "val" if not args.test_model else "test",
         root_dir,
         img_transform=img_transform,
         gt_transform=partial(gt_transform, K),
@@ -199,29 +228,37 @@ def runTraining(args):
             idk=list(range(K)),
             weighted=args.weighted_loss,
         )  # Supervise both background and foreground
-    elif args.mode in ["partial"] and args.dataset == 'SEGTHOR':
+    elif args.mode in ["partial"] and args.dataset == "SEGTHOR":
         loss_fn = CrossEntropy(
             idk=[0, 1, 3, 4],
-            weighted=args.weighted_loss,        
+            weighted=args.weighted_loss,
         )  # Do not supervise the heart (class 2)
     else:
         raise ValueError(args.mode, args.dataset)
-    
+
     if args.loss == "dice_loss":
-        loss_fn = DiceLoss(idk=list(range(K)))
+        loss_fn = DiceLoss(idk=dict(idk=list(range(K))))
     elif args.loss == "combined":
-        loss_fn = CombinedLoss(idk=list(range(K)), ce_weight=0.5, dice_weight=0.5)
+        loss_fn = CombinedLoss(
+            idk=dict(idk=list(range(K))), ce_weight=0.5, dice_weight=0.5
+        )
 
     # Notice one has the length of the _loader_, and the other one of the _dataset_
-    log_loss_tra: Tensor = torch.zeros((args.epochs, len(train_loader)))
-    log_dice_tra: Tensor = torch.zeros((args.epochs, len(train_loader.dataset), K))  # type: ignore
+    if not args.test_model:
+        log_loss_tra: Tensor = torch.zeros((args.epochs, len(train_loader)))
+        log_dice_tra: Tensor = torch.zeros((args.epochs, len(train_loader.dataset), K))  # type: ignore
+    else:
+        log_loss_tra = torch.zeros(0)
+        log_dice_tra = torch.zeros(0)
+
     log_loss_val: Tensor = torch.zeros((args.epochs, len(val_loader)))
     log_dice_val: Tensor = torch.zeros((args.epochs, len(val_loader.dataset), K))  # type: ignore
 
     best_dice: float = 0
 
     for e in range(args.epochs):
-        for m in ["train", "val"]:
+        # only run validation during test time
+        for m in ["train", "val"] if not args.test_model else ["val"]:
             match m:
                 case "train":
                     net.train()
@@ -244,15 +281,15 @@ def runTraining(args):
                 cm()
             ):  # Either dummy context manager, or the torch.no_grad for validation
                 j = 0
-                tq_iter = tqdm_(
-                    enumerate(loader), total=len(loader), desc=desc, mininterval=5
-                )
+                tq_iter = tqdm_(enumerate(loader), total=len(loader), desc=desc)
                 for i, data in tq_iter:
                     img = data["images"].to(device)
-                    gt = data["gts"].to(device)
 
-                    if opt:  # So only for training
-                        opt.zero_grad()
+                    if not args.test_model:
+                        gt = data["gts"].to(device)
+
+                        if opt:  # So only for training
+                            opt.zero_grad()
 
                     # Sanity tests to see we loaded and encoded the data correctly
                     assert 0 <= img.min() and img.max() <= 1
@@ -265,18 +302,20 @@ def runTraining(args):
 
                     # Metrics computation, not used for training
                     pred_seg = probs2one_hot(pred_probs)
-                    log_dice[e, j : j + B, :] = dice_coef(
-                        pred_seg, gt
-                    )  # One DSC value per sample and per class
 
-                    loss = loss_fn(pred_probs, gt)
-                    log_loss[e, i] = (
-                        loss.item()
-                    )  # One loss value per batch (averaged in the loss)
+                    if not args.test_model:
+                        log_dice[e, j : j + B, :] = dice_coef(
+                            pred_seg, gt
+                        )  # One DSC value per sample and per class
 
-                    if opt:  # Only for training
-                        loss.backward()
-                        opt.step()
+                        loss = loss_fn(pred_probs, gt)
+                        log_loss[e, i] = (
+                            loss.item()
+                        )  # One loss value per batch (averaged in the loss)
+
+                        if opt:  # Only for training
+                            loss.backward()
+                            opt.step()
 
                     if m == "val":
                         with warnings.catch_warnings():
@@ -290,17 +329,19 @@ def runTraining(args):
                             )
 
                     j += B  # Keep in mind that _in theory_, each batch might have a different size
-                    # For the DSC average: do not take the background class (0) into account:
-                    postfix_dict: dict[str, str] = {
-                        "Dice": f"{log_dice[e, :j, 1:].mean():05.3f}",
-                        "Loss": f"{log_loss[e, : i + 1].mean():5.2e}",
-                    }
-                    if K > 2:
-                        postfix_dict |= {
-                            f"Dice-{k}": f"{log_dice[e, :j, k].mean():05.3f}"
-                            for k in range(1, K)
+
+                    if not args.test_model:
+                        # For the DSC average: do not take the background class (0) into account:
+                        postfix_dict: dict[str, str] = {
+                            "Dice": f"{log_dice[e, :j, 1:].mean():05.3f}",
+                            "Loss": f"{log_loss[e, : i + 1].mean():5.2e}",
                         }
-                    tq_iter.set_postfix(postfix_dict)
+                        if K > 2:
+                            postfix_dict |= {
+                                f"Dice-{k}": f"{log_dice[e, :j, k].mean():05.3f}"
+                                for k in range(1, K)
+                            }
+                        tq_iter.set_postfix(postfix_dict)
 
         # I save it at each epochs, in case the code crashes or I decide to stop it early
         np.save(args.dest / "loss_tra.npy", log_loss_tra)
@@ -328,8 +369,12 @@ def runTraining(args):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--epochs", default=20, type=int)
-    parser.add_argument("--dataset", default="TOY2", choices=datasets_params.keys())
+    parser.add_argument("--epochs", default=25, type=int)
+    parser.add_argument(
+        "--dataset",
+        default="SEGTHOR_CLEAN",
+        choices=list(datasets_params.keys()),
+    )
     parser.add_argument("--mode", default="full", choices=["partial", "full"])
     parser.add_argument(
         "--dest",
@@ -355,14 +400,24 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=0.0005)
     parser.add_argument("--weight_decay", type=float, default=None)
     parser.add_argument("--model", type=str, default="enet", choices=["enet", "lwunet"])
-    parser.add_argument('--loss', default='cross_entropy', type=str, choices=['cross_entropy', 'dice_loss', 'combined'])
+    parser.add_argument(
+        "--loss",
+        default="cross_entropy",
+        type=str,
+        choices=["cross_entropy", "dice_loss", "combined"],
+    )
 
     # NOTE: Custom arguments
     parser.add_argument("--activation", default="prelu")
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--weighted_loss", action="store_true")
-    
+
+    parser.add_argument("--test_model", type=str, default="")
     args = parser.parse_args()
+
+    if args.test_model:
+        args.epochs = 1
+
 
     # parse activation
     if args.activation == "prelu":
@@ -372,7 +427,9 @@ def main():
     elif args.activation == "relu":
         args.activation_fn = nn.ReLU()
     else:
-        raise NotImplementedError(f"Activation function '{args.activation}' not available!")
+        raise NotImplementedError(
+            f"Activation function '{args.activation}' not available!"
+        )
 
     pprint(args)
 

@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --nodes=1                    # node count
+#SBATCH --ntasks=1                   # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1            # cpu-cores per task (>1 if multi-threaded tasks), 4 is default
+#SBATCH --gpus=1                     # number of gpus per node
+#SBATCH --partition=gpu_a100          # partition
+#SBATCH --time=01:00:00              # total run time limit (HH:MM:SS)
+#SBATCH --output=logs/%x/%j_%x.log   # output file
+
+source .venv/bin/activate
+python -c "import sys; print('Python version:', sys.version)"
+python -c "import torch; print('Torch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
+
+############################################################
+
+
+FOLDER=results/${SLURM_JOB_ID}_test
+
+# test model
+# this is the complete setup with all modifications
+python -O main.py \
+  --dataset TEST_PREPROCESSED \
+  --mode full \
+  --epoch 1 \
+  --dest ${FOLDER} \
+  --gpu \
+  --optimizer adamw \
+  --model enet \
+  --activation gelu \
+  --learning_rate 1e-2 \
+  --weight_decay 1e-4 \
+  --loss combined \
+  --test_model results/15293784_prepfixed3 \
+
+
+# cleanup iter* folders
+# rm -rf ${FOLDER}/iter*
+
+# stitch predictions
+python stitch_postprocessing.py \
+  --data_folder ${FOLDER}/best_epoch/val \
+  --dest_folder ${FOLDER}/stitched_pred \
+  --num_classes 5 \
+  --grp_regex "(Patient_\d\d)_\d\d\d\d" \
+  --source_scan_pattern "data/segthor_train/train/{id_}/GT.nii.gz"
