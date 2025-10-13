@@ -36,7 +36,7 @@ class CrossEntropy():
         self.idk = kwargs['idk']
 
         # class balancing weights
-        if kwargs["weighted"]:
+        if "weighted" in kwargs and kwargs["weighted"]:
             self.weights = torch.tensor([
                 9.09798426e-04, 1.88867803e+00, 1.16511524e-01, 2.54913241e+00, 4.44768241e-01
             ])
