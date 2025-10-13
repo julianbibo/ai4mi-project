@@ -50,6 +50,7 @@ from utils import (
     save_images,
 )
 
+from losses import DiceLoss, CombinedLoss
 from losses import CrossEntropy
 
 from models.lwunet import LWUNet
@@ -201,6 +202,11 @@ def runTraining(args):
         loss_fn = CrossEntropy(idk=[0, 1, 3, 4])  # Do not supervise the heart (class 2)
     else:
         raise ValueError(args.mode, args.dataset)
+    
+    if args.loss == "dice_loss":
+        loss_fn = DiceLoss(idk=list(range(K)))
+    elif args.loss == "combined":
+        loss_fn = CombinedLoss(idk=list(range(K)), ce_weight=0.5, dice_weight=0.5)
 
     # Notice one has the length of the _loader_, and the other one of the _dataset_
     log_loss_tra: Tensor = torch.zeros((args.epochs, len(train_loader)))
@@ -345,6 +351,7 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=0.0005)
     parser.add_argument("--weight_decay", type=float, default=None)
     parser.add_argument("--model", type=str, default="enet", choices=["enet", "lwunet"])
+    parser.add_argument('--loss', default='cross_entropy', type=str, choices=['cross_entropy', 'dice_loss', 'combined'])
 
     args = parser.parse_args()
 
