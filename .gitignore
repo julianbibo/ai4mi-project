@@ -2,6 +2,7 @@
 logs/
 distorch/
 old_code/
+SUBMISSION/
 
 data/*
 !data/*.b3sum
