@@ -8,8 +8,9 @@
 #SBATCH --output=logs/%x/%j_%x.log   # output file
 
 source .venv/bin/activate
-python -c "import sys; print('Python version:', sys.version)"
-python -c "import torch; print('Torch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
+which python
+python -c "import sys; print(f'Python version: {sys.version}')"
+python -c "import torch; print(f'Torch version: {torch.__version__}, CUDA available: {torch.cuda.is_available()}')"
 
 ############################################################
 
@@ -30,4 +31,3 @@ python distorch/compute_metrics.py \
   --metrics 3d_dice 3d_hd95 \
   --save_folder ${FOLDER}/metrics \
   --overwrite
-  
