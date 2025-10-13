@@ -1,6 +1,7 @@
 .venv/
 logs/
 distorch/
+old_code/
 
 data/*
 !data/*.b3sum
@@ -12,4 +13,3 @@ out/
 __pycache__/
 
 projects
-distorch-main
