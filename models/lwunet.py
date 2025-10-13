@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import torch.ao.quantization as Q
 import torch.nn.functional as F
 
 
@@ -49,29 +48,6 @@ class DilatedConv(nn.Module):
         return self.dilated_conv(x)
 
 
-class DepthSepConv(nn.Module):
-    """
-    Depthwise separable convolution.
-    """
-
-    def __init__(self, in_ch, out_ch, kernel_size=3, padding=1):
-        super(DepthSepConv, self).__init__()
-
-        # depthwise convolution
-        self.depthwise = nn.Conv2d(
-            in_ch, in_ch, kernel_size=kernel_size, padding=padding, groups=in_ch
-        )
-
-        # pointwise convolution
-        self.pointwise = nn.Conv2d(in_ch, out_ch, kernel_size=1)
-
-    def forward(self, x):
-        x = self.depthwise(x)
-        x = self.pointwise(x)
-
-        return x
-
-
 class UpConv(nn.Module):
     """
     Upsampling convolution block.
@@ -95,8 +71,8 @@ class ConvBlock(nn.Module):
         self,
         in_ch,
         out_ch,
-        conv1: nn.Conv2d = nn.Conv2d,
-        conv2: nn.Conv2d = nn.Conv2d,
+        conv1: nn.Module,
+        conv2: nn.Module,
         act=nn.LeakyReLU,
         bn=False,
     ):
@@ -126,8 +102,8 @@ class ConvBlock(nn.Module):
 class LWUNetBase4(nn.Module):
     def __init__(
         self,
-        conv1: nn.Conv2d = nn.Conv2d,
-        conv2: nn.Conv2d = nn.Conv2d,
+        conv1: nn.Module,
+        conv2: nn.Module,
         act=nn.LeakyReLU,
         bn=True,
         k=4,
@@ -137,9 +113,6 @@ class LWUNetBase4(nn.Module):
         super().__init__()
 
         print(f"LWUNet: {conv1=} {conv2=}")
-
-        self.quant = Q.QuantStub()
-        self.dequant = Q.DeQuantStub()
 
         # encoder
         self.enc1 = ConvBlock(in_ch, k, conv1=conv1, conv2=conv2, act=act, bn=bn)
@@ -167,8 +140,6 @@ class LWUNetBase4(nn.Module):
         self.pointwise_conv = nn.Conv2d(k, out_ch, kernel_size=1)
 
     def forward(self, x):
-        x = self.quant(x)
-
         enc1 = self.enc1(x)
         pool1 = self.pool(enc1)
         enc2 = self.enc2(pool1)
@@ -199,8 +170,6 @@ class LWUNetBase4(nn.Module):
         out = self.pointwise_conv(dec4)
         out = F.sigmoid(out)
 
-        out = self.dequant(out)
-
         return out
 
 
@@ -211,8 +180,8 @@ class LWUNet(LWUNetBase4):
 
     def __init__(self, in_ch: int, out_ch: int):
         super().__init__(
-            conv1=DilatedConv,
-            conv2=FactorizedConv,
+            conv1=DilatedConv,  # type: ignore
+            conv2=FactorizedConv,  # type: ignore
             act=nn.LeakyReLU,
             bn=True,
             k=4,
