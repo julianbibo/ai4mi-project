@@ -17,3 +17,11 @@ python -c "import torch; print(f'Torch version: {torch.__version__}, CUDA availa
 make data/TOY2
 make data/SEGTHOR
 make data/SEGTHOR_CLEAN CFLAGS=-O
+
+# stitch ground truth, needed for 3d metrics
+python stitch_regular.py \
+  --data_folder data/SEGTHOR_CLEAN/val/gt \
+  --dest_folder data/SEGTHOR_CLEAN/val/stitched_gt \
+  --num_classes 5 \
+  --grp_regex "(Patient_\d\d)_\d\d\d\d" \
+  --source_scan_pattern "data/segthor_train/train/{id_}/GT.nii.gz"

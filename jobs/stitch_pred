@@ -22,10 +22,18 @@ if [ -z "$FOLDER" ]; then
   exit 1
 fi
 
-# stitch predictions
-python stitch_v0.py \
+# stitch predictions (regular)
+python stitch_regular.py \
   --data_folder ${FOLDER}/best_epoch/val \
   --dest_folder ${FOLDER}/stitched_pred \
   --num_classes 5 \
   --grp_regex "(Patient_\d\d)_\d\d\d\d" \
   --source_scan_pattern "data/segthor_train/train/{id_}/GT.nii.gz"
+
+# # stitch predictions (post processing)
+# python stitch_postprocessing.py \
+#   --data_folder ${FOLDER}/best_epoch/val \
+#   --dest_folder ${FOLDER}/stitched_pred \
+#   --num_classes 5 \
+#   --grp_regex "(Patient_\d\d)_\d\d\d\d" \
+#   --source_scan_pattern "data/segthor_train/train/{id_}/GT.nii.gz"
