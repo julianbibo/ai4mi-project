@@ -194,31 +194,31 @@ class ENet(nn.Module):
                                                    BottleNeck(K * 4, K * 4, F, args=args),
                                                    BottleNeck(K * 4, K * 4, F, args=args))
                 self.bottleneck2_0 = BottleNeckDownSampling(K * 4, K * 8, F, args=args)
-                self.bottleneck2_1 = nn.Sequential(BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, args=args),
+                self.bottleneck2_1 = nn.Sequential(BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, args=args),
                                                    BottleNeck(K * 8, K * 8, F, dilation=2, args=args),
-                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, asym=True, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, asym=True, args=args),
                                                    BottleNeck(K * 8, K * 8, F, dilation=4, args=args),
-                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, args=args),
                                                    BottleNeck(K * 8, K * 8, F, dilation=8, args=args),
-                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, asym=True, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, asym=True, args=args),
                                                    BottleNeck(K * 8, K * 8, F, dilation=16, args=args))
 
                 # Middle operations
-                self.bottleneck3 = nn.Sequential(BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, args=args),
+                self.bottleneck3 = nn.Sequential(BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, args=args),
                                                  BottleNeck(K * 8, K * 8, F, dilation=2, args=args),
-                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, asym=True, args=args),
+                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, asym=True, args=args),
                                                  BottleNeck(K * 8, K * 8, F, dilation=4, args=args),
-                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, args=args),
+                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, args=args),
                                                  BottleNeck(K * 8, K * 8, F, dilation=8, args=args),
-                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, asym=True, args=args),
+                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, asym=True, args=args),
                                                  BottleNeck(K * 8, K * 4, F, dilation=16, dilate_last=True, args=args))
 
                 # Upsampling half
                 self.bottleneck4 = nn.Sequential(BottleNeckUpSampling(K * 8, K * 4, F, args=args),
-                                                 BottleNeck(K * 4, K * 4, F, dropoutRate=0.1, args=args),
-                                                 BottleNeck(K * 4, K, F, dropoutRate=0.1, args=args))
+                                                 BottleNeck(K * 4, K * 4, F, dropoutRate=args.dropout, args=args),
+                                                 BottleNeck(K * 4, K, F, dropoutRate=args.dropout, args=args))
                 self.bottleneck5 = nn.Sequential(BottleNeckUpSampling(K * 2, K, F, args=args),
-                                                 BottleNeck(K, K, F, dropoutRate=0.1, args=args))
+                                                 BottleNeck(K, K, F, dropoutRate=args.dropout, args=args))
 
                 # Final upsampling and covolutions
                 self.final = nn.Sequential(conv_block(K, K, args=args, kernel_size=3, padding=1, bias=False, stride=1),

@@ -129,9 +129,15 @@ def runTraining(args):
     net, optimizer, device, train_loader, val_loader, K = setup(args)
 
     if args.mode == "full":
-        loss_fn = CrossEntropy(idk=list(range(K)))  # Supervise both background and foreground
+        loss_fn = CrossEntropy(
+            idk=list(range(K)),
+            weighted=args.weighted_loss,
+        )  # Supervise both background and foreground
     elif args.mode in ["partial"] and args.dataset == 'SEGTHOR':
-        loss_fn = CrossEntropy(idk=[0, 1, 3, 4])  # Do not supervise the heart (class 2)
+        loss_fn = CrossEntropy(
+            idk=[0, 1, 3, 4],
+            weighted=args.weighted_loss,        
+        )  # Do not supervise the heart (class 2)
     else:
         raise ValueError(args.mode, args.dataset)
 
@@ -246,8 +252,10 @@ def main():
                         help="Keep only a fraction (10 samples) of the datasets, "
                              "to test the logics around epochs and logging easily.")
     
-    # NOTE: Custom argument
+    # NOTE: Custom arguments
     parser.add_argument("--activation", default="prelu")
+    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--weighted_loss", action="store_true")
     args = parser.parse_args()
 
     # parse activation
@@ -255,6 +263,8 @@ def main():
         args.activation_fn = nn.PReLU()
     elif args.activation == "gelu":
         args.activation_fn = nn.GELU()
+    elif args.activation == "relu":
+        args.activation_fn = nn.ReLU()
     else:
         raise NotImplementedError(f"Activation function '{args.activation}' not available!")
 
