@@ -35,9 +35,15 @@ import numpy as np
 import nibabel as nib
 from skimage.io import imsave
 from skimage.transform import resize
+from skimage import exposure
+from skimage.filters import gaussian
 
 from utils import map_, tqdm_
 
+def window_ct(ct, level=30, width=400):
+    min_hu = level - width / 2
+    max_hu = level + width / 2
+    return np.clip(ct, min_hu, max_hu)
 
 def norm_arr(img: np.ndarray) -> np.ndarray:
     casted = img.astype(np.float32)
@@ -49,6 +55,18 @@ def norm_arr(img: np.ndarray) -> np.ndarray:
     assert res.max() == 255, res.max()
 
     return res.astype(np.uint8)
+
+def enhance_contrast(img):
+    # CLAHE with gentle local enhancement
+    return (exposure.equalize_adapthist(img / 255.0, clip_limit=0.02) * 255).astype(np.uint8)
+    
+def denoise_gaussian(img, sigma=0.3):
+    img = gaussian(img, sigma=sigma, preserve_range=True)
+    return img.astype(np.uint8)
+
+def gamma_adjust(img, gamma=1.1):
+    x = (img / 255.0) ** gamma
+    return (x * 255).astype(np.uint8)
 
 
 def sanity_ct(ct, x, y, z, dx, dy, dz) -> bool:
@@ -103,15 +121,33 @@ def slice_patient(id_: str, dest_path: Path, source_path: Path, shape: tuple[int
     else:
         gt = np.zeros_like(ct, dtype=np.uint8)
 
+    ct = window_ct(ct, level = 30, width = 400)
     norm_ct: np.ndarray = norm_arr(ct)
+    norm_ct = gamma_adjust(norm_ct, gamma=1.1)
+    # norm_ct = denoise_gaussian(norm_ct, sigma=0.3)
+    norm_ct = enhance_contrast(norm_ct)
 
     to_slice_ct = norm_ct
     to_slice_gt = gt
+
+    # keep_lo, keep_hi = 0, z - 1
+    # if (not test_mode) and ("train" in str(dest_path)):
+    #     # all z-slices that contain any foreground
+    #     fg_z = np.where((gt != 0).any(axis=(0,1)))[0]
+    #     if fg_z.size > 0:
+    #         N = 35  # margin above and below
+    #         keep_lo = max(0, fg_z.min() - N)
+    #         keep_hi = min(z - 1, fg_z.max() + N)
 
     for idz in range(z):
         img_slice = resize_(to_slice_ct[:, :, idz], shape).astype(np.uint8)
         gt_slice = resize_(to_slice_gt[:, :, idz], shape, order=0).astype(np.uint8)
         assert img_slice.shape == gt_slice.shape
+
+        # if not test_mode and "train" in str(dest_path) and np.all(gt_slice == 0):
+        #     if idz < keep_lo or idz > keep_hi:
+        #         continue
+        
         gt_slice *= 63
         assert gt_slice.dtype == np.uint8, gt_slice.dtype
         # assert set(np.unique(gt_slice)) <= set(range(5))
@@ -162,7 +198,7 @@ def main(args: argparse.Namespace):
 
     # Assume the clean up is done before calling the script
     assert src_path.exists()
-    assert not dest_path.exists()
+    assert dest_path.exists()
 
     training_ids: list[str]
     validation_ids: list[str]

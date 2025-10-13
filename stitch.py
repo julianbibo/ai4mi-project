@@ -1,97 +1,102 @@
-import pickle
-import random
-import argparse
-import warnings
-from pathlib import Path
-from functools import partial
-from multiprocessing import Pool
-from typing import Callable
-import os, re
-from PIL import Image
-import skimage
+# MIT License
 
+# Copyright (c) 2024 Hoel Kervadec
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import argparse
+import re
+import skimage
 import numpy as np
 import nibabel as nib
+from pathlib import Path
+from functools import partial
+from utils import tqdm_
+from PIL import Image
+from post_processing_utils import apply_postprocessing
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description = "Stitching params")
 
-    parser.add_argument('--data_folder', type=str, required=True)
-    parser.add_argument('--dest_folder', type=str, required=True)
-    parser.add_argument('--num_classes', type=int, default=5)
-    parser.add_argument('--grp_regex', type=str, default="(Patient_\d\d)_\d\d\d\d")
-    parser.add_argument(
-        "--source_scan_pattern",
-        type=str,
-        default="data/train/train/{id_}/GT.nii.gz"
-    )
-    return parser.parse_args()
+def main(args: argparse.Namespace) -> None:
+    file_paths = sorted(args.data_folder.glob("*"))
 
-def stitch(
-    data_folder: Path,
-    dest_folder: Path,
-    num_classes: int,
-    grp_regex: str,
-    source_scan_pattern: str,
-) -> None:     
-    # gather patient IDs
-    files = os.listdir(data_folder)
+    m = re.compile(args.grp_regex)
+    patient_dict = {}
+    # get the paths to slices of each patient.
+    for fp in file_paths:
+        stem = fp.stem
+        match = re.match(m, stem)
+        id = match.group(1)
 
-    ids = []
-    for file in data_folder.glob("*.png"):
-        res = re.search(rf"{grp_regex}", str(file))
-        if res is not None:
-            ids.append(res.group(1))
-    ids = set(ids)
+        if id not in patient_dict:
+            patient_dict[id] = []
+        patient_dict[id].append(fp)
 
-    print(ids)
+    for id, paths in patient_dict.items():
+        # Load all the slices and stak them.
+        slices = []
+        for path in sorted(paths):
+            image = Image.open(path)
+            arr = np.array(image).astype(np.uint8)
+            slices.append(arr)
 
-    for id in ids:
-        # load original scan
-        original_scan = nib.load(source_scan_pattern.format(id_=id))
-        original_scan_shape = original_scan.shape
+        vol = np.stack(slices, axis=2) / 63
+        vol = vol.astype(np.uint8)
 
-        patient_files = sorted(list(filter(lambda file: id in file, files)))
-        assert len(patient_files) == original_scan_shape[2], f"Too few slices for patient {id}!"
-        
-        out = np.empty(original_scan_shape, dtype=np.uint8)
+        # Resize and save the predictions.
+        source_pattern = args.source_scan_pattern.replace("{id_}", id)
+        gt_img = nib.load(source_pattern)
+        gt = gt_img.get_fdata().astype(np.uint8)
+        vol = skimage.transform.resize(
+            vol,
+            gt.shape,
+            anti_aliasing=False,
+            order=0,
+            mode="constant",
+            preserve_range=True
+        ).astype(np.uint8)
 
-        for i, file in enumerate(patient_files):
-            # load slice
-            slice = np.asarray(Image.open(data_folder / file))
-            
-            # resize to original scan's size
-            slice = skimage.transform.resize(
-                slice,
-                original_scan_shape[:2],
-                order=0,
-                preserve_range=True,
-            )
+        vol = apply_postprocessing(vol, args.post_processing, args.radius, args.sigma)
 
-            # store slice (note that files are already sorted by slice index)
-            out[:, :, i] = slice
+        new_img = nib.Nifti1Image(vol, affine=gt_img.affine, header=gt_img.header)
+        args.dest_folder.mkdir(exist_ok=True, parents=True)
+        nib.save(new_img, args.dest_folder / (id + ".nii.gz"))
 
-        # scale by 1/63 if necessary
-        if np.max(out) >= num_classes:
-            out = out // 63
 
-        # make sure output directory exists
-        out_path = dest_folder / f"{id}.nii.gz"
-        dest_folder.mkdir(parents=True, exist_ok=True)
+def get_args() -> argparse.Namespace:
+        parser = argparse.ArgumentParser(description="Stitching arguments")
 
-        nib.save(
-            nib.nifti1.Nifti1Image(out, original_scan.affine),
-            out_path,
-        )
+        parser.add_argument("--data_folder", type=Path, required=True)
+        parser.add_argument("--dest_folder", type=Path, required=True)
+        parser.add_argument("--num_classes", type=int, required=True)
+        parser.add_argument("--grp_regex", type=str, required=True)
+        parser.add_argument("--source_scan_pattern", type=str, required=True)
 
+        # Post processing arguments:
+        parser.add_argument("--post_processing", default="closing", choices=["none", "opening", "closing", "gaussian_smoothing"])
+        parser.add_argument("--radius", type=int, default=2)
+        parser.add_argument("--sigma", type=float, default=1)
+
+        args = parser.parse_args()
+
+        print(args)
+
+        return args
 
 if __name__ == "__main__":
-    args = parse_args()
-
-    stitch(
-        Path(args.data_folder),
-        Path(args.dest_folder),
-        args.num_classes,
-        args.grp_regex,
-        args.source_scan_pattern,
-    )
+        main(get_args())

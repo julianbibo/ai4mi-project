@@ -1,5 +1,6 @@
 .venv/
 logs/
+distorch/
 
 data/*
 !data/*.b3sum
@@ -11,3 +12,4 @@ out/
 __pycache__/
 
 projects
+distorch-main
