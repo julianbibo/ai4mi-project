@@ -150,7 +150,7 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
 
     match args.model:
         case "enet":
-            net = ENet(1, K, kernels=kernels, factor=factor)
+            net = ENet(1, K, args=args, kernels=kernels, factor=factor)
             net.init_weights()
 
         case "lwunet":
@@ -196,10 +196,14 @@ def runTraining(args):
 
     if args.mode == "full":
         loss_fn = CrossEntropy(
-            idk=list(range(K))
+            idk=list(range(K)),
+            weighted=args.weighted_loss,
         )  # Supervise both background and foreground
-    elif args.mode in ["partial"] and args.dataset == "SEGTHOR":
-        loss_fn = CrossEntropy(idk=[0, 1, 3, 4])  # Do not supervise the heart (class 2)
+    elif args.mode in ["partial"] and args.dataset == 'SEGTHOR':
+        loss_fn = CrossEntropy(
+            idk=[0, 1, 3, 4],
+            weighted=args.weighted_loss,        
+        )  # Do not supervise the heart (class 2)
     else:
         raise ValueError(args.mode, args.dataset)
     
@@ -353,7 +357,22 @@ def main():
     parser.add_argument("--model", type=str, default="enet", choices=["enet", "lwunet"])
     parser.add_argument('--loss', default='cross_entropy', type=str, choices=['cross_entropy', 'dice_loss', 'combined'])
 
+    # NOTE: Custom arguments
+    parser.add_argument("--activation", default="prelu")
+    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--weighted_loss", action="store_true")
+    
     args = parser.parse_args()
+
+    # parse activation
+    if args.activation == "prelu":
+        args.activation_fn = nn.PReLU()
+    elif args.activation == "gelu":
+        args.activation_fn = nn.GELU()
+    elif args.activation == "relu":
+        args.activation_fn = nn.ReLU()
+    else:
+        raise NotImplementedError(f"Activation function '{args.activation}' not available!")
 
     pprint(args)
 

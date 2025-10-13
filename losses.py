@@ -23,6 +23,7 @@
 # SOFTWARE.
 
 
+import torch
 from torch import einsum
 import torch
 
@@ -33,6 +34,15 @@ class CrossEntropy():
     def __init__(self, **kwargs):
         # Self.idk is used to filter out some classes of the target mask. Use fancy indexing
         self.idk = kwargs['idk']
+
+        # class balancing weights
+        if kwargs["weighted"]:
+            self.weights = torch.tensor([
+                9.09798426e-04, 1.88867803e+00, 1.16511524e-01, 2.54913241e+00, 4.44768241e-01
+            ])
+        else:
+            self.weights = None
+
         print(f"Initialized {self.__class__.__name__} with {kwargs}")
 
     def __call__(self, pred_softmax, weak_target):
@@ -43,8 +53,13 @@ class CrossEntropy():
         log_p = (pred_softmax[:, self.idk, ...] + 1e-10).log()
         mask = weak_target[:, self.idk, ...].float()
 
+        # weight loss
+        if self.weights is not None:
+            mask = mask * self.weights.to(mask.device).view(1, -1, 1, 1)
+
         loss = - einsum("bkwh,bkwh->", mask, log_p)
         loss /= mask.sum() + 1e-10
+
 
         return loss
 

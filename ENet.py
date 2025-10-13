@@ -36,13 +36,13 @@ def random_weights_init(m):
                 m.bias.data.fill_(0)
 
 
-def conv_block(in_dim, out_dim, **kwconv):
+def conv_block(in_dim, out_dim, args, **kwconv):
         return nn.Sequential(nn.Conv2d(in_dim, out_dim, **kwconv),
                              nn.BatchNorm2d(out_dim),
-                             nn.PReLU())
+                             args.activation_fn)
 
 
-def conv_block_asym(in_dim, out_dim, *, kernel_size: int):
+def conv_block_asym(in_dim, out_dim, *, kernel_size: int, args):
         return nn.Sequential(nn.Conv2d(in_dim, out_dim,
                                        kernel_size=(kernel_size, 1),
                                        padding=(2, 0)),
@@ -50,12 +50,12 @@ def conv_block_asym(in_dim, out_dim, *, kernel_size: int):
                                        kernel_size=(1, kernel_size),
                                        padding=(0, 2)),
                              nn.BatchNorm2d(out_dim),
-                             nn.PReLU())
+                             args.activation_fn)
 
 
 class BottleNeck(nn.Module):
         def __init__(self, in_dim, out_dim, projectionFactor,
-                     *, dropoutRate=0.01, dilation=1,
+                     *, args, dropoutRate=0.01, dilation=1,
                      asym: bool = False, dilate_last: bool = False):
                 super().__init__()
                 self.in_dim = in_dim
@@ -65,22 +65,22 @@ class BottleNeck(nn.Module):
                 # Main branch
 
                 # Secondary branch
-                self.block0 = conv_block(in_dim, mid_dim, kernel_size=1)
+                self.block0 = conv_block(in_dim, mid_dim, args=args, kernel_size=1)
 
                 if not asym:
-                        self.block1 = conv_block(mid_dim, mid_dim, kernel_size=3, padding=dilation, dilation=dilation)
+                        self.block1 = conv_block(mid_dim, mid_dim, args=args, kernel_size=3, padding=dilation, dilation=dilation)
                 else:
-                        self.block1 = conv_block_asym(mid_dim, mid_dim, kernel_size=5)
+                        self.block1 = conv_block_asym(mid_dim, mid_dim, kernel_size=5, args=args)
 
-                self.block2 = conv_block(mid_dim, out_dim, kernel_size=1)
+                self.block2 = conv_block(mid_dim, out_dim, args=args, kernel_size=1)
 
                 self.do = nn.Dropout(p=dropoutRate)
-                self.PReLU_out = nn.PReLU()
+                self.act_out = args.activation_fn
 
                 if in_dim > out_dim:
-                        self.conv_out = conv_block(in_dim, out_dim, kernel_size=1)
+                        self.conv_out = conv_block(in_dim, out_dim, args=args, kernel_size=1)
                 elif dilate_last:
-                        self.conv_out = conv_block(in_dim, out_dim, kernel_size=3, padding=1)
+                        self.conv_out = conv_block(in_dim, out_dim, args=args, kernel_size=3, padding=1)
                 else:
                         self.conv_out = nn.Identity()
 
@@ -92,13 +92,13 @@ class BottleNeck(nn.Module):
                 b2 = self.block2(b1)
                 do = self.do(b2)
 
-                output = self.PReLU_out(self.conv_out(in_) + do)
+                output = self.act_out(self.conv_out(in_) + do)
 
                 return output
 
 
 class BottleNeckDownSampling(nn.Module):
-        def __init__(self, in_dim, out_dim, projectionFactor):
+        def __init__(self, in_dim, out_dim, projectionFactor, args):
                 super().__init__()
                 mid_dim: int = in_dim // projectionFactor
 
@@ -106,13 +106,13 @@ class BottleNeckDownSampling(nn.Module):
                 self.maxpool0 = nn.MaxPool2d(2, return_indices=True)
 
                 # Secondary branch
-                self.block0 = conv_block(in_dim, mid_dim, kernel_size=2, padding=0, stride=2)
-                self.block1 = conv_block(mid_dim, mid_dim, kernel_size=3, padding=1)
-                self.block2 = conv_block(mid_dim, out_dim, kernel_size=1)
+                self.block0 = conv_block(in_dim, mid_dim, args=args, kernel_size=2, padding=0, stride=2)
+                self.block1 = conv_block(mid_dim, mid_dim, args=args, kernel_size=3, padding=1)
+                self.block2 = conv_block(mid_dim, out_dim, args=args, kernel_size=1)
 
                 # Regularizer
                 self.do = nn.Dropout(p=0.01)
-                self.PReLU = nn.PReLU()
+                self.act = args.activation_fn
 
                 # Out
 
@@ -130,13 +130,13 @@ class BottleNeckDownSampling(nn.Module):
                 output = do
                 output[:, :c, :, :] += maxpool_output
 
-                final_output = self.PReLU(output)
+                final_output = self.act(output)
 
                 return final_output, indices
 
 
 class BottleNeckUpSampling(nn.Module):
-        def __init__(self, in_dim, out_dim, projectionFactor):
+        def __init__(self, in_dim, out_dim, projectionFactor, args):
                 super().__init__()
                 mid_dim: int = in_dim // projectionFactor
 
@@ -144,13 +144,13 @@ class BottleNeckUpSampling(nn.Module):
                 self.unpool = nn.MaxUnpool2d(2)
 
                 # Secondary branch
-                self.block0 = conv_block(in_dim, mid_dim, kernel_size=3, padding=1)
-                self.block1 = conv_block(mid_dim, mid_dim, kernel_size=3, padding=1)
-                self.block2 = conv_block(mid_dim, out_dim, kernel_size=1)
+                self.block0 = conv_block(in_dim, mid_dim, args=args, kernel_size=3, padding=1)
+                self.block1 = conv_block(mid_dim, mid_dim, args=args, kernel_size=3, padding=1)
+                self.block2 = conv_block(mid_dim, out_dim, args=args, kernel_size=1)
 
                 # Regularizer
                 self.do = nn.Dropout(p=0.01)
-                self.PReLU = nn.PReLU()
+                self.act = args.activation_fn
 
                 # Out
 
@@ -167,13 +167,13 @@ class BottleNeckUpSampling(nn.Module):
                 b2 = self.block2(b1)
                 do = self.do(b2)
 
-                output = self.PReLU(up + do)
+                output = self.act(up + do)
 
                 return output
 
 
 class ENet(nn.Module):
-        def __init__(self, in_dim: int, out_dim: int, **kwargs):
+        def __init__(self, in_dim: int, out_dim: int, args, **kwargs):
                 super().__init__()
                 F: int = kwargs["factor"] if "factor" in kwargs else 4  # Projecting factor
                 K: int = kwargs["kernels"] if "kernels" in kwargs else 16  # n_kernels
@@ -188,41 +188,41 @@ class ENet(nn.Module):
                 self.maxpool0 = nn.MaxPool2d(2, return_indices=False, ceil_mode=False)
 
                 # Downsampling half
-                self.bottleneck1_0 = BottleNeckDownSampling(K, K * 4, F)
-                self.bottleneck1_1 = nn.Sequential(BottleNeck(K * 4, K * 4, F),
-                                                   BottleNeck(K * 4, K * 4, F),
-                                                   BottleNeck(K * 4, K * 4, F),
-                                                   BottleNeck(K * 4, K * 4, F))
-                self.bottleneck2_0 = BottleNeckDownSampling(K * 4, K * 8, F)
-                self.bottleneck2_1 = nn.Sequential(BottleNeck(K * 8, K * 8, F, dropoutRate=0.1),
-                                                   BottleNeck(K * 8, K * 8, F, dilation=2),
-                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, asym=True),
-                                                   BottleNeck(K * 8, K * 8, F, dilation=4),
-                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=0.1),
-                                                   BottleNeck(K * 8, K * 8, F, dilation=8),
-                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, asym=True),
-                                                   BottleNeck(K * 8, K * 8, F, dilation=16))
+                self.bottleneck1_0 = BottleNeckDownSampling(K, K * 4, F, args=args)
+                self.bottleneck1_1 = nn.Sequential(BottleNeck(K * 4, K * 4, F, args=args),
+                                                   BottleNeck(K * 4, K * 4, F, args=args),
+                                                   BottleNeck(K * 4, K * 4, F, args=args),
+                                                   BottleNeck(K * 4, K * 4, F, args=args))
+                self.bottleneck2_0 = BottleNeckDownSampling(K * 4, K * 8, F, args=args)
+                self.bottleneck2_1 = nn.Sequential(BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dilation=2, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, asym=True, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dilation=4, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dilation=8, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, asym=True, args=args),
+                                                   BottleNeck(K * 8, K * 8, F, dilation=16, args=args))
 
                 # Middle operations
-                self.bottleneck3 = nn.Sequential(BottleNeck(K * 8, K * 8, F, dropoutRate=0.1),
-                                                 BottleNeck(K * 8, K * 8, F, dilation=2),
-                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, asym=True),
-                                                 BottleNeck(K * 8, K * 8, F, dilation=4),
-                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=0.1),
-                                                 BottleNeck(K * 8, K * 8, F, dilation=8),
-                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=0.1, asym=True),
-                                                 BottleNeck(K * 8, K * 4, F, dilation=16, dilate_last=True))
+                self.bottleneck3 = nn.Sequential(BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, args=args),
+                                                 BottleNeck(K * 8, K * 8, F, dilation=2, args=args),
+                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, asym=True, args=args),
+                                                 BottleNeck(K * 8, K * 8, F, dilation=4, args=args),
+                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, args=args),
+                                                 BottleNeck(K * 8, K * 8, F, dilation=8, args=args),
+                                                 BottleNeck(K * 8, K * 8, F, dropoutRate=args.dropout, asym=True, args=args),
+                                                 BottleNeck(K * 8, K * 4, F, dilation=16, dilate_last=True, args=args))
 
                 # Upsampling half
-                self.bottleneck4 = nn.Sequential(BottleNeckUpSampling(K * 8, K * 4, F),
-                                                 BottleNeck(K * 4, K * 4, F, dropoutRate=0.1),
-                                                 BottleNeck(K * 4, K, F, dropoutRate=0.1))
-                self.bottleneck5 = nn.Sequential(BottleNeckUpSampling(K * 2, K, F),
-                                                 BottleNeck(K, K, F, dropoutRate=0.1))
+                self.bottleneck4 = nn.Sequential(BottleNeckUpSampling(K * 8, K * 4, F, args=args),
+                                                 BottleNeck(K * 4, K * 4, F, dropoutRate=args.dropout, args=args),
+                                                 BottleNeck(K * 4, K, F, dropoutRate=args.dropout, args=args))
+                self.bottleneck5 = nn.Sequential(BottleNeckUpSampling(K * 2, K, F, args=args),
+                                                 BottleNeck(K, K, F, dropoutRate=args.dropout, args=args))
 
                 # Final upsampling and covolutions
-                self.final = nn.Sequential(conv_block(K, K, kernel_size=3, padding=1, bias=False, stride=1),
-                                           conv_block(K, K, kernel_size=3, padding=1, bias=False, stride=1),
+                self.final = nn.Sequential(conv_block(K, K, args=args, kernel_size=3, padding=1, bias=False, stride=1),
+                                           conv_block(K, K, args=args, kernel_size=3, padding=1, bias=False, stride=1),
                                            nn.Conv2d(K, out_dim, kernel_size=1))
 
                 print(f"> Initialized {self.__class__.__name__} ({in_dim=}->{out_dim=}) with {kwargs}")

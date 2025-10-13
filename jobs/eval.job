@@ -1,0 +1,26 @@
+#!/bin/bash
+
+#SBATCH --nodes=1                    # node count
+#SBATCH --ntasks=1                   # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1            # cpu-cores per task (>1 if multi-threaded tasks), 4 is default
+#SBATCH --gpus=1                     # number of gpus per node
+#SBATCH --partition=gpu_a100         # partition
+#SBATCH --time=00:10:00              # total run time limit (HH:MM:SS)
+#SBATCH --output=logs/%x/%j_%x.log   # output file
+
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+
+cd $HOME/project/distorch
+source activate ai4mi
+
+python compute_metrics.py \
+    --ref_folder ../repo/out/scans/val/gt \
+    --pred_folder ../repo/out/scans/val/pred \
+    --ref_extension .nii.gz \
+    --pred_extension .nii.gz \
+    --num_classes 5 \
+    --metrics 3d_hd95 3d_dice \
+    --save_folder ../repo/out/results/val \
+    --overwrite
